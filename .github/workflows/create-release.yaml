@@ -1,15 +1,29 @@
 name: Create Release
 
+# Publishes the package to npm WITH provenance (a signed attestation that links the tarball to this workflow run
+# and commit). Started by hand only, and it is a dry run unless "publish" is ticked, so running it is safe.
+#
+# Needs (see CONTRIBUTING.md, "Releasing"):
+#   - secret NPM_TOKEN: an npm automation/granular token with publish rights to @morgan-stanley/needle
+#   - recommended: a protected "npm-publish" environment with required reviewers
+
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Really publish to npm (leave unticked for a dry run)'
+        type: boolean
+        default: false
 
 jobs:
   build:
     name: Create Release
     runs-on: ubuntu-latest
+    environment: npm-publish
     permissions:
-      id-token: write
-      
+      contents: read
+      id-token: write # required for npm provenance
+
     steps:
 
       - name: Checkout
@@ -26,5 +40,21 @@ jobs:
       - name: Install node modules and verify build
         run: npm ci && npm run build:release
 
-      - name: Publish
-        run: npm publish --provenance --access public
+      - name: Check the version has not been published already
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::error::$name@$version is already on npm. Bump the version (merge the release PR) first."
+            exit 1
+          fi
+
+      - name: Dry run
+        if: ${{ !inputs.publish }}
+        run: npm publish --dry-run --ignore-scripts --access public
+
+      - name: Publish with provenance
+        if: ${{ inputs.publish }}
+        run: npm publish --provenance --ignore-scripts --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
