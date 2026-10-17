@@ -34,6 +34,7 @@ import { getConstructorTypes } from './metadata.functions.js';
 import { Metrics } from './metrics.js';
 import { InjectionTokensCache } from './tokens.js';
 import { addInterceptor } from './injection/interceptors.js';
+import { applyDeps } from './injection/deps.js';
 import { normalizeRegistration, registerStrategyToken, registerTypeTokens } from './injection/registration.js';
 import { assertNotDestroyed, createInstanceFactory, resolveInstance } from './injection/resolution.js';
 import { findInjectorForTypeOrToken, findScope, getRootInjector } from './injection/scoping.js';
@@ -115,7 +116,7 @@ export class Injector implements IInjector {
      */
     public register(type: unknown, config: IInjectionConfiguration = defaultInjectionConfiguration): this {
         // Make a shallow copy and normalise the resolution strategy
-        config = normalizeRegistration(config);
+        config = applyDeps(this.tokenCache, type, normalizeRegistration(config));
 
         registerTypeTokens(this.tokenCache, this.configuration, type, config.tokens);
         registerStrategyToken(this.tokenCache, type, config.strategy);
