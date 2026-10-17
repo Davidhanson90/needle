@@ -5,6 +5,7 @@ export * from './annotations/factory.js';
 export * from './annotations/lazy.js';
 export * from './annotations/optional.js';
 export * from './annotations/interceptor.js';
+export { dep } from './core/injection/deps.js';
 export * from './constants/constants.js';
 export * from './contracts/contracts.js';
 export * from './core/factory.js';
