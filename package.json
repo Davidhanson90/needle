@@ -48,7 +48,9 @@
         "lint:package": "publint",
         "audit:prod": "npm audit --omit=dev",
         "examples": "tsc -p examples/tsconfig.json && node scripts/run-examples.mjs",
-        "test:standard": "vitest run --config vitest.standard.config.ts"
+        "test:standard": "vitest run --config vitest.standard.config.ts",
+        "test:standard:tsc": "node scripts/test-standard-native.mjs tsc",
+        "test:standard:esbuild": "node scripts/test-standard-native.mjs esbuild"
     },
     "devDependencies": {
         "@eslint/js": "^9.22.0",
