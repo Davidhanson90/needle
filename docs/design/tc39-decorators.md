@@ -66,7 +66,7 @@ class Car {
   registering injector's token cache (`main/core/injection/deps.ts`). So the resolution code is unchanged and `deps` also works
   with `injector.register(Type, { deps })` and with no decorators at all.
 - If `metadata` is also supplied it wins for the types; `deps` only adds tokens.
-- Positions matter, as with constructor parameters. The array is not type-checked against the constructor in this prototype.
+- Positions matter, as with constructor parameters. `deps` on `@Injectable` is not type-checked (decorators cannot see the constructor type), but the decorator-free `injectable(Car, [...])` helper is (see 'Typed tokens, `injectable()` and dev warning').
 
 ### 3. Field and accessor injection
 
@@ -110,14 +110,15 @@ etc. from TS 5.0's `lib.decorators.d.ts` (the repo uses TS 5.9).
 
 ## What was built
 
-| Piece                                         | File                                                                                 |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| style detection + dual-mode decorator factory | `main/annotations/decorator-support.ts`                                              |
-| updated decorators                            | `main/annotations/{inject,optional,lazy,factory,strategy,injectable,interceptor}.ts` |
-| `deps` + `dep` helpers                        | `main/core/injection/deps.ts`, `contracts.ts` (`deps`, `IDependencyDescriptor`)      |
-| constructing-injector context                 | `main/core/injection/construction-context.ts`, `resolution.ts`                       |
-| standard-mode tests                           | `spec-standard/standard-decorators.spec.ts` (24 tests)                               |
-| `deps` + legacy regression tests              | `main/core/injector.deps.spec.ts`                                                    |
+| Piece                                         | File                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| style detection + dual-mode decorator factory | `main/annotations/decorator-support.ts`                                                                      |
+| updated decorators                            | `main/annotations/{inject,optional,lazy,factory,strategy,injectable,interceptor}.ts`                         |
+| `deps` + `dep` helpers                        | `main/core/injection/deps.ts`, `contracts.ts` (`deps`, `IDependencyDescriptor`)                              |
+| constructing-injector context                 | `main/core/injection/construction-context.ts`, `resolution.ts`                                               |
+| standard-mode tests                           | `spec-standard/standard-decorators.spec.ts` (24 tests)                                                       |
+| typed tokens, `injectable()`, warning tests   | `spec-standard/typed-deps.spec.ts`, `main/core/typed-token.spec.ts`, `main/core/injection/deps.warn.spec.ts` |
+| `deps` + legacy regression tests              | `main/core/injector.deps.spec.ts`                                                                            |
 
 ### Test setup
 
@@ -135,9 +136,9 @@ accessor and field injection of type, token, optional, lazy, factory and strateg
 Limitations:
 
 - **No type inference for constructor parameters.** Without `deps` a standard-decorated class resolves with no arguments (explicit
-  test). Forgetting `deps` is a silent failure mode. Mitigations: a dev-time warning when `Function.length > deps.length`
-  (cheap, partial because default/rest params are not counted) and/or a lint rule.
-- **`deps` is positional and not checked against the constructor type** in this spike (see open questions).
+  test). Mitigated by the dev-mode warning (partial: default/rest params are not counted in `Function.length`), and
+  `injectable()` for compile-time checking.
+- **`deps` on `@Injectable` is positional and not type-checked** (a class decorator cannot constrain the class's own constructor). Use `injectable(Car, [...])` for compile-time checking.
 - **Parameter decorators don't exist**, so `constructor(@Inject('x') a)` is legacy-only by definition.
 - **Field/accessor injection is not available during the constructor body** for plain fields of subclasses until initialisation
   order allows it; `accessor` resolves lazily so is safe, eager fields run at field init, before the constructor body but after
@@ -148,8 +149,32 @@ Limitations:
   instance by the base class's own decorators (works naturally) but this is untested.
 - Interceptors still match on an exact `target` type, unchanged.
 - `context.metadata` (decorator metadata proposal) is not used. It could carry per-class tokens without touching the global token cache.
-- Not tested against tsc/esbuild/Babel emit of standard decorators; only SWC `2022-03` (TS's own emit and Babel `2023-05+` differ
-  slightly in ordering edge cases).
+- Tested against SWC `2022-03`, `tsc` native emit (TS 5.0 to 5.9) and esbuild native emit. Babel is not tested (`2023-05+` can differ in ordering edge cases).
+
+## Typed tokens, `injectable()` and dev warning
+
+Added after the first prototype (see [the guide](../standard-decorators.md)).
+
+**`createToken<T>(description?)`** returns `Token<T> = symbol & { [brand]: T }`, a unique symbol at runtime. So it needs no changes in
+the token cache, `@Inject`, `tokens` or `deps`, and `get`/`getOptional`/`getLazy` gained `Token<T>` overloads (on `IInjector`,
+`Injector` and the global helpers) that return `T`, `T | undefined` and `LazyInstance<T>`. A bare token in `deps` is shorthand
+for `dep.token(token)`. Not done: checking `registerValue` values or `@Inject(token) accessor x` member types against `T`.
+
+**`injectable(Type, deps, config?)`** registers on the root injector and returns the class. `deps: DepsFor<ConstructorParameters<C>>`
+maps each constructor parameter `P` to `Newable<P> | Token<P> | Dependency<P>`. The `dep.*` helpers now return `Dependency<T>`,
+an `IDependencyDescriptor` carrying a phantom `() => T` (a function type, so `dep.optional(X)` is `X | undefined` and is rejected
+where `X` is required). `dep.optional(X)` gives `X | undefined`, `dep.lazy(X)` `LazyInstance<X>`, `dep.factory(X)` `AutoFactory<typeof X>`;
+string tokens are `Dependency<any>`. Limits: structural typing accepts any class with the same shape; abstract classes are not `Newable`.
+
+**Dev warning**: `Injectable()` receives the standard decorator context, so it knows when it is a standard decorator and calls
+`warnOnDepsMismatch`. It warns (via `getLogger().warn`, unless `NODE_ENV === 'production'`) when `deps.length !== type.length`, or when
+`type.length > 0` and neither `deps` nor `metadata` is given. Legacy usage (no context) is never warned. A longer `deps` than
+`Function.length` can be a false positive for constructors with defaults or rest parameters, and the message says so.
+
+**CI** (`.github/workflows/standard-decorators.yml`): SWC, `tsc` and esbuild native emit jobs, and a TypeScript 5.0 to 5.9 matrix. The native-emit
+jobs compile `spec-standard/` then run the output with `vitest.native.config.ts` (`scripts/test-standard-native.mjs`). The
+version matrix uses `--skipLibCheck` for `tsc --noEmit` because the repo's `@types/node` needs newer TypeScript than 5.0/5.1.
+Two small fixes were needed for old TypeScript: `WeakKey` (TS 5.2+) in `cache.ts` became `object`.
 
 ## Migration
 
@@ -202,19 +227,16 @@ class Car {
 
 ## Open questions
 
-1. Should `deps` be type-checked against the constructor, e.g. `defineInjectable(Car, [Engine, dep.token<Config>('cfg')])`, or a
-   `static inject = [...]` convention (Angular-style), or both? A typed tuple helper keeps a decorator-free route and gets compile-time checking.
-2. Add `createToken<T>()` (typed tokens) now so `dep.token(cfgToken)` and `@Inject(cfgToken)` infer `T`? It fits naturally; it was left out of the spike.
+1. (Answered by `injectable()`) Should a `static inject = [...]` convention (Angular-style) also exist? It would let a class carry its own deps and still be checked via a `satisfies`-style helper.
+2. (Done) `createToken<T>()`. Remaining: check `registerValue({ tokens: [T], value })` and `@Inject(T) accessor` member types against `T`.
 3. Should accessor injection be the documented preferred style for standard mode, with `deps` for constructor-style code?
-4. Do we want a dev-mode warning for `Function.length` vs `deps.length` mismatches?
+4. (Done) dev-mode warning for `Function.length` vs `deps.length`. Should it be opt-out via `Configuration`?
 5. Use `context.metadata` to carry member injection info instead of per-instance `WeakMap`/stack tricks?
 6. Dual publish ESM/CJS interacts with this (unrelated code, but the "which build is the decorator in" question matters for the singleton root injector).
 
 ## Recommended next steps
 
-1. Review/approve the API shape (`deps` + `dep.*` + accessor injection) before polishing.
-2. Add `createToken<T>()` and make `deps`/`@Inject` accept tokens with inferred types.
-3. Add a typed, decorator-free registration helper (`injectable(Car, [...])`) with compile-time arity/type checking.
-4. Add the `Function.length` dev warning, docs page, and a docs-site example with a toggle between legacy and standard.
-5. Test against TS's native emit (tsc + esbuild) in a CI matrix job alongside SWC, and on TS 5.0-5.9.
-6. Decide the major/minor version story (additive, so a minor; new `deps` could stay "experimental" for a release).
+1. Review/approve the API shape (`deps`, `dep.*`, `createToken`, `injectable`, accessor injection).
+2. Type-check `registerValue` and `@Inject(token) accessor` against the token type; consider a `Configuration` switch for the warning.
+3. Add a docs-site example with a toggle between legacy and standard.
+4. Decide the major/minor version story (additive, so a minor; `deps` could stay "experimental" for a release).
