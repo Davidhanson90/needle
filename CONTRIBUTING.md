@@ -69,6 +69,25 @@ attribution notices.
    sign-off of one other developer, or if you do not have permission to do that,
    you may request the reviewer to merge it for you.
 
+## Releasing
+
+Releases are cut by maintainers. Nothing here runs automatically, you opt in.
+
+**Commit messages.** Use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `chore:`, with `!` or a `BREAKING CHANGE:` footer for breaking changes). They decide the next version (`fix` = patch, `feat` = minor, breaking = major) and the changelog entries.
+
+**1. Release PR.** Run the *Release PR* workflow (`.github/workflows/release-please.yml`, [release-please](https://github.com/googleapis/release-please)) from the Actions tab. It opens or updates a `chore(main): release x.y.z` PR that bumps `package.json`, `.release-please-manifest.json` and prepends `CHANGELOG.md`. Review and merge it like any other PR. Merging creates the `vX.Y.Z` tag and GitHub release. To run it on every push to `main` instead, add a `push` trigger to that workflow.
+
+**2. Publish.** Run the *Create Release* workflow (`.github/workflows/create-release.yaml`) from the Actions tab:
+- By default it is a **dry run** (`npm publish --dry-run`, the build having already run in an earlier step, hence `--ignore-scripts`): it installs, runs `build:release` (lint, tests, build, benchmarks, typedoc) and checks the version is not already on npm.
+- Tick **publish** to run `npm publish --provenance --access public`. The job has `id-token: write`, so npm attaches a signed provenance statement linking the tarball to the workflow run and commit.
+
+**One-off maintainer setup (not in the repo):**
+- Add an `NPM_TOKEN` repository (or environment) secret: a granular npm token with publish access to `@morgan-stanley/needle`. Alternatively configure npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) for this workflow and drop the token.
+- Create an `npm-publish` environment under Settings > Environments with required reviewers, so a publish needs a second approval.
+- Settings > Actions > General > allow GitHub Actions to create pull requests (for the release PR).
+
+**Pinned actions.** Every third party action in `.github/workflows` is pinned to a full commit SHA with a version comment, and `npm run lint:actions` (run in CI) fails if one is not. Dependabot keeps them up to date.
+
 ## Code of Conduct
 
 ### Our Pledge
