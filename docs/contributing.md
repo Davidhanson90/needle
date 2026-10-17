@@ -26,3 +26,7 @@ If you already have fresh benchmark JSON and only want to rebuild the HTML:
 ```bash
 npm run bench:report:html
 ```
+
+# Benchmark regression checks
+
+Pull requests are benchmarked against their base commit in CI and fail on a meaningful slowdown. See [benchmarks.md](benchmarks.md).

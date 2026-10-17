@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+- Added a benchmark regression check to CI that compares a pull request with its base on the same runner (`docs/benchmarks.md`).
+
 ## 1.0.0
 
 ### Added
