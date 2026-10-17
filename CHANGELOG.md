@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+- Added release automation (release-please, manual trigger) and an npm publish workflow with provenance (dry run by default). See `CONTRIBUTING.md`.
+
 ## 1.0.0
 
 ### Added

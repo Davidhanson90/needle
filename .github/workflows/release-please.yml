@@ -1,0 +1,27 @@
+name: Release PR
+
+# Opens/updates a "chore(main): release x.y.z" pull request that bumps package.json and prepends CHANGELOG.md,
+# based on the Conventional Commit messages merged since the last release.
+#
+# This is INERT until used: it only runs when started by hand. To make it automatic, add
+#   push:
+#     branches: [ main ]
+# to the triggers below. See CONTRIBUTING.md ("Releasing").
+#
+# Needs: Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      with:
+        config-file: release-please-config.json
+        manifest-file: .release-please-manifest.json
