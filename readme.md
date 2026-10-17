@@ -52,7 +52,7 @@ Full guides live in [`docs/`](docs/README.md):
 - [Getting started](docs/getting-started.md), [Tokens](docs/tokens.md), [Strategies](docs/strategies.md), [Factories](docs/factories.md), [Lazy and optional](docs/lazy-and-optional.md)
 - [Instances and values](docs/instances-and-values.md), [External resolution](docs/external-resolution.md), [Caching](docs/caching.md), [Scopes](docs/scopes.md), [Interception](docs/interception.md)
 - [Metrics](docs/metrics.md), [Configuration](docs/configuration.md), [Errors and logging](docs/errors-and-logging.md), [Semantic injection](docs/semantic-injection.md), [Angular](docs/angular.md)
-- [Feature support matrix](docs/feature-support.md), [Troubleshooting](docs/troubleshooting.md), [Contributing and benchmarks](docs/contributing.md)
+- [Feature support matrix](docs/feature-support.md), [Module formats (ESM/CJS)](docs/module-formats.md), [Troubleshooting](docs/troubleshooting.md), [Contributing and benchmarks](docs/contributing.md)
 
 Runnable examples are in [`examples/`](examples) (`npm run examples`).
 
