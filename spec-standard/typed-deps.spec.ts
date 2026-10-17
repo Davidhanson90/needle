@@ -97,6 +97,17 @@ describe('typed tokens, injectable() and deps warnings under standard decorators
         expect(warn.mock.calls[0][0]).toContain('Two');
     });
 
+    it('warns when a constructor takes parameters but deps is missing', () => {
+        class A {}
+        @Injectable()
+        class Forgot {
+            constructor(public a?: A) {}
+        }
+        expect(Forgot).toBeDefined();
+        expect(warn).toHaveBeenCalledOnce();
+        expect(warn.mock.calls[0][0]).toContain("no 'deps' were given");
+    });
+
     it('does not warn for a matching deps list', () => {
         class A {}
         @Injectable({ deps: [A] })
