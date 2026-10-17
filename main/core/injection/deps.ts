@@ -1,4 +1,14 @@
-import { IDependencyDescriptor, IInjectionConfiguration, ITokenCache, Newable } from '../../contracts/contracts.js';
+import {
+    Dependency,
+    IDependencyDescriptor,
+    IInjectionConfiguration,
+    ITokenCache,
+    Newable,
+    Token,
+} from '../../contracts/contracts.js';
+import type { AutoFactory } from '../factory.js';
+import type { LazyInstance } from '../lazy.js';
+import { getLogger } from '../logger.js';
 import { generateUUID } from '../uuid.js';
 
 /** Placeholder constructor type for parameters whose value is not resolved from a type (token, lazy, factory, strategy) */
@@ -21,6 +31,10 @@ export function applyDeps(
     const metadata: Newable[] = deps.map((d, index) => {
         if (typeof d === 'function') {
             return d as Newable;
+        }
+        if (typeof d === 'symbol') {
+            // a bare (typed) token is the same as dep.token(token)
+            return applyDescriptor(tokenCache, owner, index, { kind: 'token', token: d });
         }
         return applyDescriptor(tokenCache, owner, index, d);
     });
@@ -68,21 +82,76 @@ function applyDescriptor(tokenCache: ITokenCache, owner: unknown, index: number,
 }
 
 /**
- * Helpers for describing constructor dependencies in `@Injectable({ deps: [...] })`
+ * Helpers for describing constructor dependencies in `@Injectable({ deps: [...] })` or `injectable(Type, [...])`.
+ * Each helper remembers the constructor parameter type it provides, which `injectable()` checks.
  *
  * @example
  * @Injectable({ deps: [Engine, dep.token('config'), dep.optional(Logger), dep.lazy(Wheels)] })
  * class Car { constructor(engine: Engine, config: Config, logger?: Logger, wheels: LazyInstance<Wheels>) {} }
  */
 export const dep = {
-    /** inject whatever is registered against a string/symbol token (same as `@Inject('token')`) */
-    token: (token: string | symbol): IDependencyDescriptor => ({ kind: 'token', token }),
+    /** inject whatever is registered against a token (same as `@Inject('token')`). A typed token carries its type, a string/symbol is unchecked */
+    token: ((token: string | symbol): Dependency<unknown> => ({ kind: 'token', token })) as {
+        <T>(token: Token<T>): Dependency<T>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- an untyped token cannot be checked against the parameter
+        (token: string | symbol): Dependency<any>;
+    },
     /** inject `undefined` rather than throwing if nothing is registered (same as `@Optional()`); target may be a type or token */
-    optional: (target: Newable | string | symbol): IDependencyDescriptor => ({ kind: 'optional', target }),
+    optional: ((target: Newable | string | symbol): Dependency<unknown> => ({ kind: 'optional', target })) as {
+        <T>(target: Newable<T>): Dependency<T | undefined>;
+        <T>(target: Token<T>): Dependency<T | undefined>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- an untyped token cannot be checked against the parameter
+        (target: string | symbol): Dependency<any>;
+    },
     /** inject a LazyInstance (same as `@Lazy(Type)`) */
-    lazy: (target: Newable): IDependencyDescriptor => ({ kind: 'lazy', target }),
+    lazy: <T>(target: Newable<T>): Dependency<LazyInstance<T>> => ({ kind: 'lazy', target }),
     /** inject an AutoFactory (same as `@Factory(Type)`) */
-    factory: (target: Newable): IDependencyDescriptor => ({ kind: 'factory', target }),
+    factory: <T extends Newable>(target: T): Dependency<AutoFactory<T>> => ({ kind: 'factory', target }),
     /** inject all types registered with `strategy: name` (same as `@Strategy(name)`) */
-    strategy: (token: string | symbol): IDependencyDescriptor => ({ kind: 'strategy', token }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the strategy's member type is not known from its name
+    strategy: (token: string | symbol): Dependency<any> => ({ kind: 'strategy', token }),
 };
+
+/** One checked entry of a `deps` tuple: a class, a typed token or a `dep.*` helper that provides `T` */
+export type DepFor<T> = Newable<T> | Token<T> | Dependency<T>;
+
+/** Maps a constructor's parameter tuple to the `deps` tuple that satisfies it */
+export type DepsFor<P extends unknown[]> = { [K in keyof P]-?: DepFor<P[K]> };
+
+/**
+ * Whether Needle's dev-mode diagnostics are on (off when `NODE_ENV` is `production`)
+ */
+function isDevMode(): boolean {
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+    return proc?.env?.NODE_ENV !== 'production';
+}
+
+/**
+ * Dev-mode only: warns (through the pluggable logger) when the number of `deps` differs from the constructor's declared
+ * parameter count. Used for standard-decorated classes, which have no `design:paramtypes` to fall back on, so a missing
+ * or short `deps` would otherwise construct the class with `undefined` arguments silently.
+ * `Function.length` stops at the first parameter with a default value or rest, so a longer `deps` can be a false alarm there.
+ */
+export function warnOnDepsMismatch(type: unknown, config: IInjectionConfiguration | undefined): void {
+    if (!isDevMode() || typeof type !== 'function') {
+        return;
+    }
+    const expected = type.length;
+    const actual = config?.deps?.length;
+    if (actual == null) {
+        if (expected > 0 && config?.metadata == null) {
+            getLogger().warn(
+                `[needle] ${type.name || 'anonymous class'} is decorated with a standard decorator and its constructor takes ${expected} parameter(s), but no 'deps' were given. ` +
+                    `Standard decorators emit no constructor metadata, so they will be undefined. Use @Injectable({ deps: [...] }).`,
+            );
+        }
+        return;
+    }
+    if (actual !== expected) {
+        getLogger().warn(
+            `[needle] ${type.name || 'anonymous class'} declares ${actual} 'deps' but its constructor takes ${expected} parameter(s). ` +
+                `Check that 'deps' lists one entry per constructor parameter, in order.` +
+                (actual > expected ? ' (Parameters with default values or rest parameters are not counted.)' : ''),
+        );
+    }
+}
