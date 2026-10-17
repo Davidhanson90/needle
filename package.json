@@ -38,6 +38,8 @@
         "bench": "node -e \"require('fs').mkdirSync('reports/bench',{recursive:true})\" && vitest bench --run --config vitest.bench.config.ts --outputJson reports/bench/bench-results.json",
         "bench:report": "npm run bench && node bench/generate-bench-report.mjs",
         "bench:report:html": "node bench/generate-bench-report.mjs",
+        "bench:ab": "node scripts/bench-ab.mjs",
+        "test:bench-compare": "node --test scripts/bench-compare.test.mjs",
         "test": "npm run test:types && vitest run",
         "test:types": "tsc -p spec/tsconfig.json --noEmit",
         "test:watch": "vitest",
