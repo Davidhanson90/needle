@@ -700,5 +700,5 @@ export interface IConstructionInterceptor<TTarget extends Newable = any> {
      * @param instance The instance of the given type
      * @param context Context at point of construction
      */
-    afterCreate(instance: InstanceOfType<TTarget>, context: IInjectionConstruction<TTarget>): void;
+    afterCreate(instance: InstanceOfType<TTarget>, context: IInjectionContext<TTarget>): void;
 }
