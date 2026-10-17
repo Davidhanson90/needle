@@ -107,6 +107,16 @@ export type OptionalConstructorParameters<T extends new (...args: any) => any> =
     : never;
 
 /**
+ * Describes a non-type constructor dependency (see `dep` helpers)
+ */
+export type IDependencyDescriptor =
+    | { kind: 'token'; token: StringOrSymbol }
+    | { kind: 'strategy'; token: StringOrSymbol }
+    | { kind: 'optional'; target: Newable | StringOrSymbol }
+    | { kind: 'lazy'; target: Newable }
+    | { kind: 'factory'; target: Newable };
+
+/**
  * Injection token interface
  */
 export interface IInjectionToken {
@@ -480,6 +490,14 @@ export interface IInjectionConfiguration<T = any> {
      * You can provide explicit metadata for a type using this property.  Note if you are not leveraging decorators with 'emitDecoratorMetadata' you must provide all metadata for a given type
      */
     metadata?: MetadataStaticConstructorTypes<T>;
+
+    /**
+     * Explicit constructor dependencies. This is the way to describe constructor injection when using standard (TC39)
+     * decorators, which have no parameter decorators and no `design:paramtypes` metadata. It also works with legacy decorators
+     * or no decorators at all. Plain constructors are type dependencies; use `dep.token/optional/lazy/factory/strategy` for the rest.
+     * Expands to `metadata` + parameter tokens at registration time.
+     */
+    deps?: Array<Newable | IDependencyDescriptor>;
 
     /**
      * Determines how the type will be cached in memory
