@@ -19,13 +19,14 @@ The `exports` map has `import` and `require` conditions, each with its own neste
 If an application loads both copies (for example an ESM app that depends on a library that `require()`s Needle) the module-level state exists twice. Needle is designed for this: the root injector is stored on `globalThis` under a well-known key (`needle.morganstanley.com.root.injector`), and both copies create it only if it does not exist yet. That means:
 
 - both copies share one root injector, one registry and one set of singletons;
-- `get(Injector)` resolves from either copy, because injectors are recognised by a type id rather than by class identity.
+- `get(Injector)` resolves from either copy, because injectors are recognised by a type id rather than by class identity;
+- the logger is stored on `globalThis` under `Symbol.for('needle.morganstanley.com.logger')`, so `setLogger` in one copy applies to both.
 
 What is **not** shared is class identity: `esmCopy.Injector !== cjsCopy.Injector`, so `instanceof` checks across copies are false. Compare with the exported helpers rather than `instanceof` if you can end up with both. Module-level statics such as `Injector.verify` are also per copy.
 
 ## How it is tested
 
-- `npm run test:package` packs the library, installs the tarball into a throwaway project, then runs a CJS consumer, an ESM consumer, and a script that loads both copies in one process and asserts they share the root injector and singletons.
+- `npm run test:package` packs the library, installs the tarball into a throwaway project, then runs a CJS consumer, an ESM consumer, and a script that loads both copies in one process and asserts they share the root injector, singletons and logger.
 - `npm run lint:package` runs [publint](https://publint.dev).
 - `npm run lint:types` runs [`@arethetypeswrong/cli`](https://github.com/arethetypeswrong/arethetypeswrong.github.io) against the packed tarball (node16 CJS and ESM, and bundler resolution). The `node10` resolution is ignored, as it cannot read `exports`.
 

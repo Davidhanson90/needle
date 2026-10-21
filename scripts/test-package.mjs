@@ -67,6 +67,13 @@ assert.strictEqual(esm.get(Shared), cjs.get(Shared), 'registrations and singleto
 assert.ok(esm.get(esm.Injector));
 assert.ok(cjs.get(cjs.Injector));
 assert.ok(esm.get(cjs.Injector));
+
+// setLogger in one copy is seen by the other (the logger lives on globalThis)
+const logger = { warn() {}, log() {} };
+esm.setLogger(logger);
+assert.strictEqual(cjs.getLogger(), logger, 'cjs copy sees logger set via esm copy');
+cjs.resetLogger();
+assert.strictEqual(esm.getLogger(), esm.consoleLogger, 'esm copy sees reset via cjs copy');
 console.log('dual ok');
 `);
     for (const f of ['cjs.cjs', 'esm.mjs', 'dual.mjs']) {
